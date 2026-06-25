@@ -6,12 +6,13 @@ export const FAILED_FOLDER = path.join(DOWNLOAD_ROOT, 'failed');
 export const PROGRESS_FILE = path.join(DOWNLOAD_ROOT, '.progress.count');
 export const MATCH_COUNT_FOLDER_REGEX = /^\d+ match$/;
 export const CHUNK_REPORT_REGEX = /^keyword-matches\.chunk-\d+\.json$/;
+export const REPORT_FILE = path.join(DOWNLOAD_ROOT, 'keyword-matches.json');
 
 export const KEYWORDS = [
-  // { folder: 'shewly', key: 'শিউল' },
+  { folder: 'shewly', key: 'শিউল' },
   // { folder: 'shewly roy', key: 'শিউল রায়' },
   // { folder: 'six', key: 'ছয়' },
-  // { folder: 'domar', key: 'ডোমার' },
+  { folder: 'domar', key: 'ডোমার' },
   // { folder: 'nilphamar', key: 'নীলফামারী' },
   // { folder: 'mother', key: 'মাতৃত্ব' },
   // { folder: '180', key: '১৮০' },

@@ -6,7 +6,7 @@ import path from 'path';
 import { assertPdfIsReadable } from './utils/pdf';
 import { DOWNLOAD_ROOT, FILES_FOLDER, KEYWORDS, FAILED_FOLDER, PROGRESS_FILE } from './utils/keywords';
 
-const WORKER_COUNT = 20;
+const WORKER_COUNT = 3;
 
 // Workers run as separate processes, so progress is tallied via the shared
 // PROGRESS_FILE on disk (one appended byte per file) instead of an in-memory counter.
