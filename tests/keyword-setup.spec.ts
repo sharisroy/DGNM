@@ -19,5 +19,7 @@ test('prepare keyword output folders', async () => {
     const folderPath = path.join(DOWNLOAD_ROOT, folder);
     fs.rmSync(folderPath, { recursive: true, force: true });
     fs.mkdirSync(folderPath, { recursive: true });
-  }
+  } 
+
+  // test
 });
