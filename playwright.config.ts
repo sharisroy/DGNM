@@ -37,7 +37,7 @@ export default defineConfig({
   /* Configure projects for major browsers */
   projects: [
     {
-      /* Downloads PDFs into downloads/files — must finish before tests that read that folder. */
+      /* Downloads PDFs into files/ — must finish before tests that read that folder. */
       name: 'setup',
       testMatch: /pdf-download\.spec\.ts/,
       use: { ...devices['Desktop Chrome'] },
