@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
-import { DOWNLOAD_ROOT, KEYWORDS, MATCH_COUNT_FOLDER_REGEX, CHUNK_REPORT_REGEX } from './utils/keywords';
+import { DOWNLOAD_ROOT, KEYWORDS, MATCH_COUNT_FOLDER_REGEX, CHUNK_REPORT_REGEX, FAILED_FOLDER, PROGRESS_FILE } from './utils/keywords';
 
 test('prepare keyword output folders', async () => {
   expect(fs.existsSync(DOWNLOAD_ROOT), `${DOWNLOAD_ROOT} does not exist — run pdf-download.spec.ts first`).toBeTruthy();
@@ -15,11 +15,14 @@ test('prepare keyword output folders', async () => {
     }
   }
 
+  fs.rmSync(PROGRESS_FILE, { force: true });
+
   for (const { folder } of KEYWORDS) {
     const folderPath = path.join(DOWNLOAD_ROOT, folder);
     fs.rmSync(folderPath, { recursive: true, force: true });
     fs.mkdirSync(folderPath, { recursive: true });
-  } 
+  }
 
-  // test
+  fs.rmSync(FAILED_FOLDER, { recursive: true, force: true });
+  fs.mkdirSync(FAILED_FOLDER, { recursive: true });
 });

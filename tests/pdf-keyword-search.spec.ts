@@ -4,9 +4,19 @@ import Tesseract from 'tesseract.js';
 import fs from 'fs';
 import path from 'path';
 import { assertPdfIsReadable } from './utils/pdf';
-import { DOWNLOAD_ROOT, FILES_FOLDER, KEYWORDS } from './utils/keywords';
+import { DOWNLOAD_ROOT, FILES_FOLDER, KEYWORDS, FAILED_FOLDER, PROGRESS_FILE } from './utils/keywords';
 
-const WORKER_COUNT = 8;
+const WORKER_COUNT = 20;
+
+// Workers run as separate processes, so progress is tallied via the shared
+// PROGRESS_FILE on disk (one appended byte per file) instead of an in-memory counter.
+function reportProgress(total: number) {
+  fs.appendFileSync(PROGRESS_FILE, '.');
+  const processed = fs.statSync(PROGRESS_FILE).size;
+  if (processed % 100 === 0 || processed === total) {
+    console.log(`[progress] ${processed}/${total} files processed`);
+  }
+}
 
 // pdf-parse inserts "-- N of M --" markers between pages even when a scanned
 // page has no real text layer, so strip those before judging text density.
@@ -57,43 +67,54 @@ for (const [chunkIndex, fileChunk] of fileChunks.entries()) {
     }));
 
     const multiMatches: { file: string; method: 'text' | 'ocr'; count: number; keys: string[] }[] = [];
+    const failed: { file: string; error: string }[] = [];
 
     for (const file of fileChunk) {
       const sourcePath = path.join(FILES_FOLDER, file);
-      const buffer = fs.readFileSync(sourcePath);
 
-      await assertPdfIsReadable(buffer, file);
+      try {
+        const buffer = fs.readFileSync(sourcePath);
 
-      const parser = new PDFParse({ data: buffer });
-      const directText = (await parser.getText()).text;
-      await parser.destroy();
+        await assertPdfIsReadable(buffer, file);
 
-      let method: 'text' | 'ocr' = 'text';
-      let text = directText;
-      if (isTextless(directText)) {
-        method = 'ocr';
-        text = await ocrText(buffer);
-      }
+        const parser = new PDFParse({ data: buffer });
+        const directText = (await parser.getText()).text;
+        await parser.destroy();
 
-      const matchedKeys = new Set<string>();
-
-      for (const result of results) {
-        const entry = { file, method };
-        if (text.includes(result.key)) {
-          result.matched.push(entry);
-          matchedKeys.add(result.key);
-          fs.copyFileSync(sourcePath, path.join(DOWNLOAD_ROOT, result.folder, file));
-        } else {
-          result.notMatched.push(entry);
+        let method: 'text' | 'ocr' = 'text';
+        let text = directText;
+        if (isTextless(directText)) {
+          method = 'ocr';
+          text = await ocrText(buffer);
         }
+
+        const matchedKeys = new Set<string>();
+
+        for (const result of results) {
+          const entry = { file, method };
+          if (text.includes(result.key)) {
+            result.matched.push(entry);
+            matchedKeys.add(result.key);
+            fs.copyFileSync(sourcePath, path.join(DOWNLOAD_ROOT, result.folder, file));
+          } else {
+            result.notMatched.push(entry);
+          }
+        }
+
+        if (matchedKeys.size >= 2) {
+          const countFolderPath = path.join(DOWNLOAD_ROOT, `${matchedKeys.size} match`);
+          fs.mkdirSync(countFolderPath, { recursive: true });
+          fs.copyFileSync(sourcePath, path.join(countFolderPath, file));
+          multiMatches.push({ file, method, count: matchedKeys.size, keys: [...matchedKeys] });
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        fs.copyFileSync(sourcePath, path.join(FAILED_FOLDER, file));
+        failed.push({ file, error: message });
+        console.log(`  ✗ ${file} failed to read (${message}) -> downloads/failed/`);
       }
 
-      if (matchedKeys.size >= 2) {
-        const countFolderPath = path.join(DOWNLOAD_ROOT, `${matchedKeys.size} match`);
-        fs.mkdirSync(countFolderPath, { recursive: true });
-        fs.copyFileSync(sourcePath, path.join(countFolderPath, file));
-        multiMatches.push({ file, method, count: matchedKeys.size, keys: [...matchedKeys] });
-      }
+      reportProgress(allFiles.length);
     }
 
     const report = {
@@ -107,6 +128,7 @@ for (const [chunkIndex, fileChunk] of fileChunks.entries()) {
         notMatched,
       })),
       multiMatches,
+      failed,
     };
     const reportPath = path.join(DOWNLOAD_ROOT, `keyword-matches.chunk-${chunkIndex + 1}.json`);
     fs.writeFileSync(reportPath, JSON.stringify(report, null, 2));
@@ -120,6 +142,10 @@ for (const [chunkIndex, fileChunk] of fileChunks.entries()) {
       }
     }
     multiMatches.forEach(({ file, count, keys }) => console.log(`  ${count} match -> ${file} [${keys.join(', ')}]`));
+    if (failed.length > 0) {
+      console.log(`  failed -> downloads/failed/: ${failed.length}`);
+      failed.forEach(({ file, error }) => console.log(`    ✗ ${file} (${error})`));
+    }
 
     expect(fileChunk.length, 'expected this chunk to have at least one PDF to process').toBeGreaterThan(0);
   });
