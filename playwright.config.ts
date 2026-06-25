@@ -54,6 +54,13 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
       testMatch: /pdf-keyword-search\.spec\.ts/,
       dependencies: ['keyword-setup'],
+    },
+    {
+      /* Merges all chunk-N keyword reports into one keyword-matches.json once every chunk worker finishes. */
+      name: 'keyword-report',
+      testMatch: /keyword-report\.spec\.ts/,
+      use: { ...devices['Desktop Chrome'] },
+      dependencies: ['chromium'],
     }
 
     /* Test against mobile viewports. */
