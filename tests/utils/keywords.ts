@@ -2,6 +2,8 @@ import path from 'path';
 
 export const DOWNLOAD_ROOT = path.join(__dirname, '..', '..', 'downloads');
 export const FILES_FOLDER = path.join(DOWNLOAD_ROOT, 'files');
+export const FAILED_FOLDER = path.join(DOWNLOAD_ROOT, 'failed');
+export const PROGRESS_FILE = path.join(DOWNLOAD_ROOT, '.progress.count');
 export const MATCH_COUNT_FOLDER_REGEX = /^\d+ match$/;
 export const CHUNK_REPORT_REGEX = /^keyword-matches\.chunk-\d+\.json$/;
 
