@@ -11,3 +11,4 @@ node_modules/
 
 # Downloaded/generated test data
 /downloads/
+/files/

@@ -4,7 +4,7 @@ import Tesseract from 'tesseract.js';
 import fs from 'fs';
 import path from 'path';
 import { assertPdfIsReadable } from './utils/pdf';
-import { DOWNLOAD_ROOT, FILES_FOLDER, KEYWORDS, FAILED_FOLDER, PROGRESS_FILE } from './utils/keywords';
+import { DOWNLOAD_ROOT, FILES_FOLDER, KEYWORDS, PROGRESS_FILE } from './utils/keywords';
 import { WORKER_COUNT } from './utils/config';
 
 // Workers run as separate processes, so progress is tallied via the shared
@@ -62,15 +62,8 @@ for (let chunkIndex = 0; chunkIndex < WORKER_COUNT; chunkIndex++) {
 
     test.skip(fileChunk.length === 0, 'no PDFs assigned to this chunk');
 
-    const results = KEYWORDS.map(({ folder, key }) => ({
-      key,
-      folder,
-      matched: [] as { file: string; method: 'text' | 'ocr' }[],
-      notMatched: [] as { file: string; method: 'text' | 'ocr' }[],
-    }));
-
-    const multiMatches: { file: string; method: 'text' | 'ocr'; count: number; keys: string[] }[] = [];
-    const failed: { file: string; error: string }[] = [];
+    const matches: Record<string, string[]> = {};
+    const failed: string[] = [];
 
     for (const file of fileChunk) {
       const sourcePath = path.join(FILES_FOLDER, file);
@@ -84,70 +77,28 @@ for (let chunkIndex = 0; chunkIndex < WORKER_COUNT; chunkIndex++) {
         const directText = (await parser.getText()).text;
         await parser.destroy();
 
-        let method: 'text' | 'ocr' = 'text';
-        let text = directText;
-        if (isTextless(directText)) {
-          method = 'ocr';
-          text = await ocrText(buffer);
-        }
+        const text = isTextless(directText) ? await ocrText(buffer) : directText;
+        const matchedLabels = KEYWORDS.filter(({ key }) => text.includes(key)).map(({ label }) => label);
 
-        const matchedKeys = new Set<string>();
-
-        for (const result of results) {
-          const entry = { file, method };
-          if (text.includes(result.key)) {
-            result.matched.push(entry);
-            matchedKeys.add(result.key);
-            fs.copyFileSync(sourcePath, path.join(DOWNLOAD_ROOT, result.folder, file));
-          } else {
-            result.notMatched.push(entry);
-          }
-        }
-
-        if (matchedKeys.size >= 2) {
-          const countFolderPath = path.join(DOWNLOAD_ROOT, `${matchedKeys.size} match`);
-          fs.mkdirSync(countFolderPath, { recursive: true });
-          fs.copyFileSync(sourcePath, path.join(countFolderPath, file));
-          multiMatches.push({ file, method, count: matchedKeys.size, keys: [...matchedKeys] });
-        }
+        matchedLabels.forEach((label) => {
+          (matches[label] ??= []).push(file);
+        });
+        if (matchedLabels.length > 0) console.log(`  ✓ ${file} -> [${matchedLabels.join(', ')}]`);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        fs.copyFileSync(sourcePath, path.join(FAILED_FOLDER, file));
-        failed.push({ file, error: message });
-        console.log(`  ✗ ${file} failed to read (${message}) -> downloads/failed/`);
+        failed.push(file);
+        console.log(`  ✗ ${file} failed to read (${message})`);
       }
 
       reportProgress(allFiles.length);
     }
 
-    const report = {
-      chunk: chunkIndex + 1,
-      byKeyword: results.map(({ key, folder, matched, notMatched }) => ({
-        keyword: key,
-        folder,
-        matchedCount: matched.length,
-        notMatchedCount: notMatched.length,
-        matched,
-        notMatched,
-      })),
-      multiMatches,
-      failed,
-    };
+    const report = { chunk: chunkIndex + 1, matches, failed };
     const reportPath = path.join(DOWNLOAD_ROOT, `keyword-matches.chunk-${chunkIndex + 1}.json`);
     fs.writeFileSync(reportPath, JSON.stringify(report, null, 2));
     await test.info().attach(`keyword-matches.chunk-${chunkIndex + 1}.json`, { path: reportPath, contentType: 'application/json' });
 
     console.log(`[chunk ${chunkIndex + 1}/${WORKER_COUNT}] processed ${fileChunk.length} files`);
-    for (const { key, folder, matched } of results) {
-      if (matched.length > 0) {
-        console.log(`  "${key}" -> downloads/${folder}/: ${matched.length}`);
-        matched.forEach(({ file, method }) => console.log(`    ✓ ${file} (${method})`));
-      }
-    }
-    multiMatches.forEach(({ file, count, keys }) => console.log(`  ${count} match -> ${file} [${keys.join(', ')}]`));
-    if (failed.length > 0) {
-      console.log(`  failed -> downloads/failed/: ${failed.length}`);
-      failed.forEach(({ file, error }) => console.log(`    ✗ ${file} (${error})`));
-    }
+    if (failed.length > 0) console.log(`  failed: ${failed.length}`);
   });
 }
