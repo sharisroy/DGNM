@@ -5,8 +5,7 @@ import fs from 'fs';
 import path from 'path';
 import { assertPdfIsReadable } from './utils/pdf';
 import { DOWNLOAD_ROOT, FILES_FOLDER, KEYWORDS, FAILED_FOLDER, PROGRESS_FILE } from './utils/keywords';
-
-const WORKER_COUNT = 3;
+import { WORKER_COUNT } from './utils/config';
 
 // Workers run as separate processes, so progress is tallied via the shared
 // PROGRESS_FILE on disk (one appended byte per file) instead of an in-memory counter.
@@ -47,17 +46,21 @@ async function ocrText(buffer: Buffer): Promise<string> {
 function chunk<T>(items: T[], count: number): T[][] {
   const chunks: T[][] = Array.from({ length: count }, () => []);
   items.forEach((item, i) => chunks[i % count].push(item));
-  return chunks.filter((c) => c.length > 0);
+  return chunks;
 }
 
-const allFiles = fs.existsSync(FILES_FOLDER)
-  ? fs.readdirSync(FILES_FOLDER).filter((f) => f.toLowerCase().endsWith('.pdf'))
-  : [];
-const fileChunks = chunk(allFiles, WORKER_COUNT);
-
-for (const [chunkIndex, fileChunk] of fileChunks.entries()) {
-  test(`verify and sort PDF chunk ${chunkIndex + 1}/${fileChunks.length} (${fileChunk.length} files)`, async () => {
+// Test count must be static at collection time — Playwright lists every test in every
+// project before any project runs, so reading FILES_FOLDER here (rather than inside the
+// test body below) would freeze the chunk count at whatever existed before pdf-download
+// and keyword-setup ran, usually zero on a fresh checkout.
+for (let chunkIndex = 0; chunkIndex < WORKER_COUNT; chunkIndex++) {
+  test(`verify and sort PDF chunk ${chunkIndex + 1}/${WORKER_COUNT}`, async () => {
     expect(fs.existsSync(FILES_FOLDER), `${FILES_FOLDER} does not exist — run pdf-download.spec.ts first`).toBeTruthy();
+
+    const allFiles = fs.readdirSync(FILES_FOLDER).filter((f) => f.toLowerCase().endsWith('.pdf'));
+    const fileChunk = chunk(allFiles, WORKER_COUNT)[chunkIndex];
+
+    test.skip(fileChunk.length === 0, 'no PDFs assigned to this chunk');
 
     const results = KEYWORDS.map(({ folder, key }) => ({
       key,
@@ -134,7 +137,7 @@ for (const [chunkIndex, fileChunk] of fileChunks.entries()) {
     fs.writeFileSync(reportPath, JSON.stringify(report, null, 2));
     await test.info().attach(`keyword-matches.chunk-${chunkIndex + 1}.json`, { path: reportPath, contentType: 'application/json' });
 
-    console.log(`[chunk ${chunkIndex + 1}/${fileChunks.length}] processed ${fileChunk.length} files`);
+    console.log(`[chunk ${chunkIndex + 1}/${WORKER_COUNT}] processed ${fileChunk.length} files`);
     for (const { key, folder, matched } of results) {
       if (matched.length > 0) {
         console.log(`  "${key}" -> downloads/${folder}/: ${matched.length}`);
@@ -146,7 +149,5 @@ for (const [chunkIndex, fileChunk] of fileChunks.entries()) {
       console.log(`  failed -> downloads/failed/: ${failed.length}`);
       failed.forEach(({ file, error }) => console.log(`    ✗ ${file} (${error})`));
     }
-
-    expect(fileChunk.length, 'expected this chunk to have at least one PDF to process').toBeGreaterThan(0);
   });
 }

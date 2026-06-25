@@ -6,6 +6,23 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      page_start:
+        description: 'First listing page to download'
+        required: false
+        default: '1'
+      page_end:
+        description: 'Last listing page to download'
+        required: false
+        default: '2'
+      page_size:
+        description: 'Items per listing page'
+        required: false
+        default: '10'
+      worker_count:
+        description: 'Number of keyword-search chunks/workers'
+        required: false
+        default: '5'
 
 jobs:
   test:
@@ -25,6 +42,11 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Run Playwright tests
+        env:
+          PAGE_START: ${{ github.event.inputs.page_start }}
+          PAGE_END: ${{ github.event.inputs.page_end }}
+          PAGE_SIZE: ${{ github.event.inputs.page_size }}
+          WORKER_COUNT: ${{ github.event.inputs.worker_count }}
         run: npx playwright test --workers=20
 
       - name: Upload Playwright report
