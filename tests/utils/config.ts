@@ -6,8 +6,8 @@ function envInt(name: string, fallback: number): number {
   return parsed;
 }
 
-export const PAGE_START = envInt('PAGE_START', 3);
-export const PAGE_END = envInt('PAGE_END', 5);
+export const PAGE_START = envInt('PAGE_START', 6);
+export const PAGE_END = envInt('PAGE_END', 10);
 // ^ currently set to run pages 1 to 2 only
 export const PAGE_SIZE = envInt('PAGE_SIZE', 100);
 export const WORKER_COUNT = envInt('WORKER_COUNT', 20);
