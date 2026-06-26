@@ -9,4 +9,4 @@ function envInt(name: string, fallback: number): number {
 export const PAGE_START = envInt('PAGE_START', 1);
 export const PAGE_END = envInt('PAGE_END', 2);
 export const PAGE_SIZE = envInt('PAGE_SIZE', 10);
-export const WORKER_COUNT = envInt('WORKER_COUNT', 5);
+export const WORKER_COUNT = envInt('WORKER_COUNT', 4);

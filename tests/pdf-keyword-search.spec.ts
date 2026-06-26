@@ -27,16 +27,46 @@ function isTextless(text: string) {
   return stripPageMarkers(text).replace(/\s+/g, '').length < 20;
 }
 
-async function ocrText(buffer: Buffer): Promise<string> {
+// Leptonica/Tesseract report some failures (e.g. "Image too small to scale!!",
+// "Line cannot be recognized!!") by printing straight to stdout/stderr instead of
+// throwing or rejecting — the page still "succeeds" with whatever partial text it
+// managed to recognize. Watching the streams while OCR runs is the only way to see these.
+const OCR_WARNING_PATTERNS = [/image too small to scale/i, /cannot be recognized/i];
+
+function watchForOcrWarnings<T>(run: () => Promise<T>): Promise<{ result: T; hadOcrWarning: boolean }> {
+  let hadOcrWarning = false;
+  const check = (chunk: unknown) => {
+    if (OCR_WARNING_PATTERNS.some((pattern) => pattern.test(String(chunk)))) hadOcrWarning = true;
+  };
+  const originalStdoutWrite = process.stdout.write.bind(process.stdout);
+  const originalStderrWrite = process.stderr.write.bind(process.stderr);
+  process.stdout.write = ((chunk: unknown, ...args: unknown[]) => {
+    check(chunk);
+    return (originalStdoutWrite as Function)(chunk, ...args);
+  }) as typeof process.stdout.write;
+  process.stderr.write = ((chunk: unknown, ...args: unknown[]) => {
+    check(chunk);
+    return (originalStderrWrite as Function)(chunk, ...args);
+  }) as typeof process.stderr.write;
+
+  return run().finally(() => {
+    process.stdout.write = originalStdoutWrite;
+    process.stderr.write = originalStderrWrite;
+  }).then((result) => ({ result, hadOcrWarning }));
+}
+
+async function ocrText(buffer: Buffer): Promise<{ text: string; hadOcrWarning: boolean }> {
   const parser = new PDFParse({ data: buffer });
   try {
-    const screenshot = await parser.getScreenshot({ scale: 2 });
-    const pageTexts: string[] = [];
-    for (const renderedPage of screenshot.pages) {
-      const { data } = await Tesseract.recognize(Buffer.from(renderedPage.data), 'ben');
-      pageTexts.push(data.text);
-    }
-    return pageTexts.join('\n');
+    return await watchForOcrWarnings(async () => {
+      const screenshot = await parser.getScreenshot({ scale: 2 });
+      const pageTexts: string[] = [];
+      for (const renderedPage of screenshot.pages) {
+        const { data } = await Tesseract.recognize(Buffer.from(renderedPage.data), 'ben');
+        pageTexts.push(data.text);
+      }
+      return pageTexts.join('\n');
+    }).then(({ result, hadOcrWarning }) => ({ text: result, hadOcrWarning }));
   } finally {
     await parser.destroy();
   }
@@ -77,11 +107,31 @@ for (let chunkIndex = 0; chunkIndex < WORKER_COUNT; chunkIndex++) {
         const directText = (await parser.getText()).text;
         await parser.destroy();
 
-        const text = isTextless(directText) ? await ocrText(buffer) : directText;
+        const usedOcr = isTextless(directText);
+        let text = directText;
+        let ocrFailed = false;
+
+        if (usedOcr) {
+          const ocrResult = await ocrText(buffer);
+          text = ocrResult.text;
+          ocrFailed = ocrResult.hadOcrWarning || isTextless(text);
+        }
+
+        if (ocrFailed) {
+          failed.push(file);
+          console.log(`  ✗ ${file} failed to read (OCR could not recognize the page)`);
+          reportProgress(allFiles.length);
+          continue;
+        }
+
         const matchedLabels = KEYWORDS.filter(({ key }) => text.includes(key)).map(({ label }) => label);
 
         matchedLabels.forEach((label) => {
           (matches[label] ??= []).push(file);
+
+          const labelFolder = path.join(DOWNLOAD_ROOT, label);
+          fs.mkdirSync(labelFolder, { recursive: true });
+          fs.copyFileSync(sourcePath, path.join(labelFolder, file));
         });
         if (matchedLabels.length > 0) console.log(`  ✓ ${file} -> [${matchedLabels.join(', ')}]`);
       } catch (error) {
