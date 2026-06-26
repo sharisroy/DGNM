@@ -5,7 +5,7 @@ import fs from 'fs';
 import path from 'path';
 import { assertPdfIsReadable } from './utils/pdf';
 import { DOWNLOAD_ROOT, FILES_FOLDER, KEYWORDS, PROGRESS_FILE } from './utils/keywords';
-import { WORKER_COUNT } from './utils/config';
+import { WORKER_COUNT, PAGE_START, PAGE_END } from './utils/config';
 
 // Workers run as separate processes, so progress is tallied via the shared
 // PROGRESS_FILE on disk (one appended byte per file) instead of an in-memory counter.
@@ -77,6 +77,18 @@ async function ocrText(buffer: Buffer): Promise<{ text: string; hadOcrWarning: b
   }
 }
 
+// Filenames are written as `page-<N>-<index>-...pdf` by pdf-download.spec.ts;
+// files that don't match the pattern (e.g. manually dropped-in PDFs) are kept either way.
+function pageNumberOf(fileName: string): number | null {
+  const match = fileName.match(/^page-(\d+)-/);
+  return match ? Number(match[1]) : null;
+}
+
+function isWithinPageRange(fileName: string): boolean {
+  const pageNumber = pageNumberOf(fileName);
+  return pageNumber === null || (pageNumber >= PAGE_START && pageNumber <= PAGE_END);
+}
+
 // Round-robin split so n PDFs (100, 200, or any n) spread evenly across up to WORKER_COUNT tests/workers.
 function chunk<T>(items: T[], count: number): T[][] {
   const chunks: T[][] = Array.from({ length: count }, () => []);
@@ -92,7 +104,9 @@ for (let chunkIndex = 0; chunkIndex < WORKER_COUNT; chunkIndex++) {
   test(`verify and sort PDF chunk ${chunkIndex + 1}/${WORKER_COUNT}`, async () => {
     expect(fs.existsSync(FILES_FOLDER), `${FILES_FOLDER} does not exist — run pdf-download.spec.ts first`).toBeTruthy();
 
-    const allFiles = fs.readdirSync(FILES_FOLDER).filter((f) => f.toLowerCase().endsWith('.pdf'));
+    const allFiles = fs
+      .readdirSync(FILES_FOLDER)
+      .filter((f) => f.toLowerCase().endsWith('.pdf') && isWithinPageRange(f));
     const fileChunk = chunk(allFiles, WORKER_COUNT)[chunkIndex];
 
     test.skip(fileChunk.length === 0, 'no PDFs assigned to this chunk');
