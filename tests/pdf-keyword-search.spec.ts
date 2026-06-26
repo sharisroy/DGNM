@@ -35,8 +35,13 @@ const OCR_WARNING_PATTERNS = [/image too small to scale/i, /cannot be recognized
 
 function watchForOcrWarnings<T>(run: () => Promise<T>): Promise<{ result: T; hadOcrWarning: boolean }> {
   let hadOcrWarning = false;
+  // Native writes can split a single warning across multiple stdout/stderr calls
+  // (e.g. "Line cannot be " then "recognized!!"), so match against a running tail
+  // buffer instead of each chunk in isolation, or cross-chunk warnings get missed.
+  let tail = '';
   const check = (chunk: unknown) => {
-    if (OCR_WARNING_PATTERNS.some((pattern) => pattern.test(String(chunk)))) hadOcrWarning = true;
+    tail = (tail + String(chunk)).slice(-200);
+    if (OCR_WARNING_PATTERNS.some((pattern) => pattern.test(tail))) hadOcrWarning = true;
   };
   const originalStdoutWrite = process.stdout.write.bind(process.stdout);
   const originalStderrWrite = process.stderr.write.bind(process.stderr);
