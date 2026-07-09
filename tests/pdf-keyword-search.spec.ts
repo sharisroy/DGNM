@@ -24,7 +24,13 @@ function stripPageMarkers(text: string) {
 }
 
 function isTextless(text: string) {
-  return stripPageMarkers(text).replace(/\s+/g, '').length < 20;
+  const stripped = stripPageMarkers(text).replace(/\s+/g, '');
+  // Legacy Bangla "ANSI" fonts (SutonnyMJ/Bijoy-style) render as real Bengali
+  // glyphs but map to arbitrary Latin-range codepoints in the text layer, so a
+  // plain length check is fooled into thinking there's usable text. Count only
+  // actual Bengali Unicode script characters to decide whether OCR is needed.
+  const bengaliChars = stripped.match(/[ঀ-৿]/g) ?? [];
+  return bengaliChars.length < 20;
 }
 
 // Leptonica/Tesseract report some failures (e.g. "Image too small to scale!!",
@@ -77,10 +83,11 @@ async function ocrText(buffer: Buffer): Promise<{ text: string; hadOcrWarning: b
   }
 }
 
-// Filenames are written as `page-<N>-<index>-...pdf` by pdf-download.spec.ts;
-// files that don't match the pattern (e.g. manually dropped-in PDFs) are kept either way.
+// Filenames are written as `<publish_date>_page-<N>-<index>-...pdf` by
+// pdf-download.spec.ts; files that don't match the pattern (e.g. manually
+// dropped-in PDFs) are kept either way.
 function pageNumberOf(fileName: string): number | null {
-  const match = fileName.match(/^page-(\d+)-/);
+  const match = fileName.match(/_page-(\d+)-/);
   return match ? Number(match[1]) : null;
 }
 

@@ -6,6 +6,7 @@
 // import { FILES_FOLDER } from './utils/keywords';
 
 // const BASE_URL = 'https://dgnm.gov.bd/pages/go-ultimates';
+// const PUBLISH_DATE_PATTERN = /\d{2}-\d{2}-\d{4}/;
 
 // function listingUrl(pageNumber: number) {
 //   return `${BASE_URL}?page=${pageNumber}&page_size=${PAGE_SIZE}`;
@@ -15,26 +16,51 @@
 //   fs.rmSync(FILES_FOLDER, { recursive: true, force: true });
 //   fs.mkdirSync(FILES_FOLDER, { recursive: true });
 
+//   // The site renders Publish Date with Bengali numerals (e.g. ০৮-০৭-২০২৬) until the
+//   // language is switched to English, which PUBLISH_DATE_PATTERN can't match — every
+//   // row would otherwise fall back to 'unknown-date'. The toggle sets a `lang` cookie
+//   // and reloads, and that cookie sticks for the rest of this browser context.
+//   await page.goto(listingUrl(PAGE_START), { waitUntil: 'networkidle' });
+//   const langToggle = page.locator('.btn-lang-change');
+//   if ((await langToggle.getAttribute('data-type')) === 'bn') {
+//     await langToggle.click();
+//     await page.waitForLoadState('networkidle');
+//   }
+
 //   for (let pageNumber = PAGE_START; pageNumber <= PAGE_END; pageNumber++) {
 //     await page.goto(listingUrl(pageNumber), { waitUntil: 'networkidle' });
 //     await page.waitForTimeout(10000);
 
-//     const pdfHrefs = await page
-//       .locator('a[href]')
-//       .evaluateAll((anchors) =>
-//         Array.from(new Set(anchors.map((a) => (a as HTMLAnchorElement).href).filter((href) => href.toLowerCase().endsWith('.pdf'))))
-//       );
+//     // Each listing row (SL/Title/Issue No/Files/Publish Date/Action) can hold more
+//     // than one PDF link, so pair every href with its own row's Publish Date cell
+//     // rather than pulling all page anchors into one flat, dateless list.
+//     const rows = await page.locator('tr').evaluateAll((trs) =>
+//       trs
+//         .map((tr) => ({
+//           rowText: tr.textContent ?? '',
+//           hrefs: Array.from(tr.querySelectorAll('a[href]'))
+//             .map((a) => (a as HTMLAnchorElement).href)
+//             .filter((href) => href.toLowerCase().endsWith('.pdf')),
+//         }))
+//         .filter((row) => row.hrefs.length > 0)
+//     );
 
-//     expect(pdfHrefs.length, `expected at least one PDF link on page ${pageNumber}`).toBeGreaterThan(0);
+//     const pdfEntries = rows.flatMap((row) => {
+//       const dateMatch = row.rowText.match(PUBLISH_DATE_PATTERN);
+//       const publishDate = dateMatch ? dateMatch[0] : 'unknown-date';
+//       return row.hrefs.map((href) => ({ href, publishDate }));
+//     });
 
-//     for (const [index, href] of pdfHrefs.entries()) {
+//     expect(pdfEntries.length, `expected at least one PDF link on page ${pageNumber}`).toBeGreaterThan(0);
+
+//     for (const [index, { href, publishDate }] of pdfEntries.entries()) {
 //       const response = await page.request.get(href);
 //       expect(response.ok(), `download failed for ${href}`).toBeTruthy();
 
 //       const buffer = await response.body();
 //       expect(buffer.length).toBeGreaterThan(0);
 
-//       const fileName = `page-${pageNumber}-${String(index + 1).padStart(2, '0')}-${path.basename(new URL(href).pathname)}`;
+//       const fileName = `${publishDate}_page-${pageNumber}-${String(index + 1).padStart(2, '0')}-${path.basename(new URL(href).pathname)}`;
 //       const filePath = path.join(FILES_FOLDER, fileName);
 //       fs.writeFileSync(filePath, buffer);
 

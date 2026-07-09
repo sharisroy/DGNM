@@ -8,8 +8,9 @@ export const CHUNK_REPORT_REGEX = /^keyword-matches\.chunk-\d+\.json$/;
 export const REPORT_FILE = path.join(DOWNLOAD_ROOT, 'keyword-matches.json');
 
 export const KEYWORDS = [
-  // { label: 'shewly', key: 'শিউল' },
-  { label: 'shewly roy', key: 'শিউল রায়' },
+  { label: 'shewly', key: 'শিউলী' },
+  { label: 'shewly roy', key: 'শিউলী রায়' },
+  { label: 'reg', key: '001287' },
   // { label: 'six', key: 'ছয়' },
   { label: 'domar', key: 'ডোমার' },
   // { label: 'nilphamar', key: 'নীলফামারী' },
