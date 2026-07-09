@@ -18,7 +18,7 @@ on:
       page_size:
         description: 'Items per listing page'
         required: false
-        default: '10'
+        default: '50'
       worker_count:
         description: 'Number of keyword-search chunks/workers'
         required: false
