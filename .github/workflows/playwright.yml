@@ -14,7 +14,7 @@ on:
       page_end:
         description: 'Last listing page to download'
         required: false
-        default: '1'
+        default: '5'
       page_size:
         description: 'Items per listing page'
         required: false
