@@ -14,15 +14,15 @@ on:
       page_end:
         description: 'Last listing page to download'
         required: false
-        default: '2'
+        default: '1'
       page_size:
         description: 'Items per listing page'
         required: false
-        default: '20'
+        default: '10'
       worker_count:
         description: 'Number of keyword-search chunks/workers'
         required: false
-        default: '5'
+        default: '20'
 
 jobs:
   test:
