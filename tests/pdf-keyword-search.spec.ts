@@ -173,8 +173,5 @@ for (let chunkIndex = 0; chunkIndex < WORKER_COUNT; chunkIndex++) {
     const reportPath = path.join(DOWNLOAD_ROOT, `keyword-matches.chunk-${chunkIndex + 1}.json`);
     fs.writeFileSync(reportPath, JSON.stringify(report, null, 2));
     await test.info().attach(`keyword-matches.chunk-${chunkIndex + 1}.json`, { path: reportPath, contentType: 'application/json' });
-
-    console.log(`[chunk ${chunkIndex + 1}/${WORKER_COUNT}] processed ${fileChunk.length} files`);
-    if (failed.length > 0) console.log(`  failed: ${failed.length}`);
   });
 }
