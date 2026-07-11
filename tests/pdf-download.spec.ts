@@ -6,11 +6,21 @@ import { PAGE_START, PAGE_END, PAGE_SIZE } from './utils/config';
 import { FILES_FOLDER } from './utils/keywords';
 
 const BASE_URL = 'https://dgnm.gov.bd/pages/go-ultimates';
+const ORDER_FILTER = '6922d2e881fc96cef9e9b0d2';
 const PUBLISH_DATE_PATTERN = /\d{2}-\d{2}-\d{4}/;
 
 function listingUrl(pageNumber: number) {
-  return `${BASE_URL}?page=${pageNumber}&page_size=${PAGE_SIZE}`;
+  const filters = encodeURIComponent(JSON.stringify({ order: ORDER_FILTER }));
+  return `${BASE_URL}?filters=${filters}&page=${pageNumber}&page_size=${PAGE_SIZE}`;
 }
+
+
+// const BASE_URL = 'https://dgnm.gov.bd/pages/go-ultimates';
+// const PUBLISH_DATE_PATTERN = /\d{2}-\d{2}-\d{4}/;
+
+// function listingUrl(pageNumber: number) {
+//   return `${BASE_URL}?page=${pageNumber}&page_size=${PAGE_SIZE}`;
+// }
 
 test(`download and verify PDFs from page ${PAGE_START} to ${PAGE_END}`, async ({ page }) => {
   fs.rmSync(FILES_FOLDER, { recursive: true, force: true });

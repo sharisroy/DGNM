@@ -6,7 +6,7 @@ function envInt(name: string, fallback: number): number {
   return parsed;
 }
 
-export const PAGE_START = envInt('PAGE_START', 1);
-export const PAGE_END = envInt('PAGE_END', 5);
-export const PAGE_SIZE = envInt('PAGE_SIZE',50);
+export const PAGE_START = 1;
+export const PAGE_END = 2;
+export const PAGE_SIZE = 50;
 export const WORKER_COUNT = envInt('WORKER_COUNT', 20);
